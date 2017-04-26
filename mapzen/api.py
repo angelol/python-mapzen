@@ -16,50 +16,56 @@ def check_not_empty(reference, message=None):
 class MapzenAPI(object):
     """Python Client for Mapzen APIs"""
     DEFAULT_VERSION = 'v1'
-    SEARCH_BASE_URL = 'https://search.mapzen.com'
-    BASE_PARAMS = ('sources', 'layers', 'boundary_country')
-
-    # Autocomplete endpoint
-    AUTOCOMPLETE_API_BASEURL = SEARCH_BASE_URL
-    AUTOCOMPLETE_API_ENDPOINT = 'autocomplete'
-    AUTOCOMPLETE_API_PARAMS = BASE_PARAMS + ('text', 'focus_point_lat', 'focus_point_lon')
-
-    # Search endpoint
-    SEARCH_API_BASEURL = SEARCH_BASE_URL
-    SEARCH_API_ENDPOINT = 'search'
-    SEARCH_API_PARAMS = AUTOCOMPLETE_API_PARAMS + (
-        'size', 'boundary_rect_min_lat', 'boundary_rect_min_lon', 'boundary_rect_max_lat', 'boundary_rect_max_lon',
-        'boundary_circle_lat', 'boundary_circle_lon', 'boundary_circle_radius'
-    )
-
-    # Reverse endpoint
-    REVERSE_API_BASEURL = SEARCH_BASE_URL
-    REVERSE_API_ENDPOINT = 'reverse'
-    REVERSE_API_PARAMS = BASE_PARAMS + ('size', 'point_lat', 'point_lon')
     
-    #Libpostal (beta) is handled on a different base URL and has no versioning
-    LIBPOSTAL_BASE_URL = 'https://libpostal.mapzen.com'
-    
-    # Parse address endpoint (libpostal)
-    PARSE_API_BASEURL = LIBPOSTAL_BASE_URL
-    PARSE_API_ENDPOINT = 'parse'
-    PARSE_API_PARAMS = ('address', 'format')
-    
-    # Expand address endpoint (libpostal)
-    EXPAND_API_BASEURL = LIBPOSTAL_BASE_URL
-    EXPAND_API_ENDPOINT = 'expand'
-    EXPAND_API_PARAMS = ('address')
-     
-    # Use X-Cache to improve performance
-    # Mapzen use CDN to help reduce this effect and limit the impact of common queries on its application servers.
-    # See https://mapzen.com/documentation/search/api-keys-rate-limits/#caching-to-improve-performance
-    x_cache = 'HIT'
-    api_key = None
-    version = None
 
-    def __init__(self, api_key, version=None):
-        self.api_key = check_not_empty(api_key)
+    def __init__(self, search_host=None, libpostal_host=None, api_key=None, version=None):
+        if search_host is not None:
+            self.SEARCH_BASE_URL = search_host
+        else:
+            self.SEARCH_BASE_URL = 'https://search.mapzen.com'
+            
+        self.api_key = api_key
         self.version = version or self.DEFAULT_VERSION
+        self.BASE_PARAMS = ('sources', 'layers', 'boundary_country')
+
+        # Autocomplete endpoint
+        self.AUTOCOMPLETE_API_BASEURL = self.SEARCH_BASE_URL
+        self.AUTOCOMPLETE_API_ENDPOINT = 'autocomplete'
+        self.AUTOCOMPLETE_API_PARAMS = self.BASE_PARAMS + ('text', 'focus_point_lat', 'focus_point_lon')
+
+        # Search endpoint
+        self.SEARCH_API_BASEURL = self.SEARCH_BASE_URL
+        self.SEARCH_API_ENDPOINT = 'search'
+        self.SEARCH_API_PARAMS = self.AUTOCOMPLETE_API_PARAMS + (
+            'size', 'boundary_rect_min_lat', 'boundary_rect_min_lon', 'boundary_rect_max_lat', 'boundary_rect_max_lon',
+            'boundary_circle_lat', 'boundary_circle_lon', 'boundary_circle_radius'
+        )
+
+        # Reverse endpoint
+        self.REVERSE_API_BASEURL = self.SEARCH_BASE_URL
+        self.REVERSE_API_ENDPOINT = 'reverse'
+        self.REVERSE_API_PARAMS = self.BASE_PARAMS + ('size', 'point_lat', 'point_lon')
+
+        #Libpostal (beta) is handled on a different base URL and has no versioning
+        if libpostal_host is not None:
+            self.LIBPOSTAL_BASE_URL = libpostal_host
+        else:
+            self.LIBPOSTAL_BASE_URL = 'https://libpostal.mapzen.com'
+
+        # Parse address endpoint (libpostal)
+        self.PARSE_API_BASEURL = self.LIBPOSTAL_BASE_URL
+        self.PARSE_API_ENDPOINT = 'parse'
+        self.PARSE_API_PARAMS = ('address', 'format')
+
+        # Expand address endpoint (libpostal)
+        self.EXPAND_API_BASEURL = self.LIBPOSTAL_BASE_URL
+        self.EXPAND_API_ENDPOINT = 'expand'
+        self.EXPAND_API_PARAMS = ('address')
+
+        # Use X-Cache to improve performance
+        # Mapzen use CDN to help reduce this effect and limit the impact of common queries on its application servers.
+        # See https://mapzen.com/documentation/search/api-keys-rate-limits/#caching-to-improve-performance
+        self.x_cache = 'HIT'
 
     def search(self, text, **kwargs):
         """
