@@ -1,5 +1,5 @@
 import json
-from urllib import urlencode
+from urllib import quote
 from urllib2 import Request, urlopen, HTTPError
 
 from mapzen.exceptions import MapzenError, MapzenRateLimitError, MapzenKeyError
@@ -18,7 +18,7 @@ class MapzenAPI(object):
     DEFAULT_VERSION = 'v1'
     
 
-    def __init__(self, search_host=None, libpostal_host=None, api_key=None, version=None):
+    def __init__(self, route_host=None, search_host=None, libpostal_host=None, api_key=None, version=None):
         if search_host is not None:
             self.SEARCH_BASE_URL = search_host
         else:
@@ -51,7 +51,13 @@ class MapzenAPI(object):
             self.LIBPOSTAL_BASE_URL = libpostal_host
         else:
             self.LIBPOSTAL_BASE_URL = 'https://libpostal.mapzen.com'
-
+            
+        if route_host is not None:
+            self.ROUTE_API_BASE_URL = route_host
+        else:
+            self.ROUTE_API_BASE_URL = 'https://valhalla.mapzen.com'
+        self.ROUTE_API_ENDPOINT = 'route'
+        self.ROUTE_API_PARAMS = ('json', )
         # Parse address endpoint (libpostal)
         self.PARSE_API_BASEURL = self.LIBPOSTAL_BASE_URL
         self.PARSE_API_ENDPOINT = 'parse'
@@ -98,6 +104,22 @@ class MapzenAPI(object):
         return self._make_request(
             self._prepare_endpoint(self.SEARCH_API_BASEURL, self.SEARCH_API_ENDPOINT),
             self._prepare_params(kwargs, self.SEARCH_API_PARAMS)
+        )
+        
+    def route(self, a, b, **kwargs):
+        data = {'locations': []}
+        for point in (a, b):            
+            data['locations'].append({
+                "lat": point[0],
+                "lon": point[1],
+                "type": "break",
+            })
+        data['costing'] = 'auto_shorter'
+        kwargs['json'] = json.dumps(data)
+        print 'kwargs: ', kwargs
+        return self._make_request(
+            self._prepare_endpoint_noversion(self.ROUTE_API_BASE_URL, self.ROUTE_API_ENDPOINT),
+            kwargs,
         )
 
     def reverse(self, point_lat, point_lon, **kwargs):
@@ -215,7 +237,7 @@ class MapzenAPI(object):
         return _params
 
     def _prepare_request(self, endpoint, params):
-        request = Request('%s?%s' % (endpoint, urlencode(params)))
+        request = Request('%s?%s' % (endpoint, urlencode(params, quote_via=quote)))
         request.add_header('X-Cache', self.x_cache)
         return request
 
@@ -227,6 +249,7 @@ class MapzenAPI(object):
         except HTTPError as e:
             self._raise_exceptions_for_status(e)
         except Exception as e:
+            raise
             raise MapzenError(str(e))
 
     @staticmethod
@@ -246,3 +269,65 @@ class MapzenAPI(object):
             reason = '%s Server Error: %s for url: %s' % (status_code, e.reason, e.geturl())
         if reason:
             raise MapzenError(reason, status_code=status_code)
+
+from urllib import quote_plus
+def urlencode(query, doseq=0, quote_via=quote_plus):
+    """Encode a sequence of two-element tuples or dictionary into a URL query string.
+    If any values in the query arg are sequences and doseq is true, each
+    sequence element is converted to a separate parameter.
+    If the query arg is a sequence of two-element tuples, the order of the
+    parameters in the output will match the order of parameters in the
+    input.
+    """
+
+    if hasattr(query,"items"):
+        # mapping objects
+        query = query.items()
+    else:
+        # it's a bother at times that strings and string-like objects are
+        # sequences...
+        try:
+            # non-sequence items should not work with len()
+            # non-empty strings will fail this
+            if len(query) and not isinstance(query[0], tuple):
+                raise TypeError
+            # zero-length sequences of all types will get here and succeed,
+            # but that's a minor nit - since the original implementation
+            # allowed empty dicts that type of behavior probably should be
+            # preserved for consistency
+        except TypeError:
+            ty,va,tb = sys.exc_info()
+            raise TypeError, "not a valid non-string sequence or mapping object", tb
+
+    l = []
+    if not doseq:
+        # preserve old behavior
+        for k, v in query:
+            k = quote_via(str(k))
+            v = quote_via(str(v))
+            l.append(k + '=' + v)
+    else:
+        for k, v in query:
+            k = quote_via(str(k))
+            if isinstance(v, str):
+                v = quote_via(v)
+                l.append(k + '=' + v)
+            elif _is_unicode(v):
+                # is there a reasonable way to convert to ASCII?
+                # encode generates a string, but "replace" or "ignore"
+                # lose information and "strict" can raise UnicodeError
+                v = quote_via(v.encode("ASCII","replace"))
+                l.append(k + '=' + v)
+            else:
+                try:
+                    # is this a sufficient test for sequence-ness?
+                    len(v)
+                except TypeError:
+                    # not a sequence
+                    v = quote_via(str(v))
+                    l.append(k + '=' + v)
+                else:
+                    # loop over the sequence
+                    for elt in v:
+                        l.append(k + '=' + quote_via(str(elt)))
+    return '&'.join(l)    
